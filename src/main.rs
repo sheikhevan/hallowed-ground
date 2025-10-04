@@ -3,6 +3,9 @@ use bevy::{
     prelude::*,
     window::PrimaryWindow,
 };
+use bevy_ecs_tilemap::TilemapPlugin;
+
+mod tiles;
 
 #[derive(Component)]
 struct Camera {
@@ -29,7 +32,19 @@ impl Default for Camera {
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: String::from("Hallowed Ground"),
+                        ..Default::default()
+                    }),
+                    ..default()
+                })
+                .set(ImagePlugin::default_nearest()),
+        )
+        .add_plugins(TilemapPlugin)
+        .add_systems(Startup, tiles::setup_tiles)
         .add_systems(Startup, (setup_camera, temp_setup_shapes))
         .add_systems(Update, (camera_edge_scroll, camera_zoom, camera_drag))
         .run();
