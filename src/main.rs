@@ -1,4 +1,8 @@
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
+use bevy::{
+    input::mouse::{MouseMotion, MouseWheel},
+    prelude::*,
+    window::PrimaryWindow,
+};
 
 #[derive(Component)]
 struct Camera {
@@ -27,7 +31,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, (setup_camera, temp_setup_shapes))
-        .add_systems(Update, (camera_edge_scroll, camera_zoom))
+        .add_systems(Update, (camera_edge_scroll, camera_zoom, camera_drag))
         .run();
 }
 
@@ -93,6 +97,25 @@ fn camera_zoom(
         let new_scale = (current_scale - zoom_delta).clamp(camera.min_zoom, camera.max_zoom);
 
         camera_transform.scale = Vec3::splat(new_scale);
+    }
+}
+
+fn camera_drag(
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    mut msg_motion: MessageReader<MouseMotion>,
+    mut q_camera: Query<(&mut Transform, &Camera)>,
+) {
+    if !mouse_button.pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok((mut camera_transform, _)) = q_camera.single_mut() else {
+        return;
+    };
+
+    for msg in msg_motion.read() {
+        camera_transform.translation.x -= msg.delta.x;
+        camera_transform.translation.y += msg.delta.y;
     }
 }
 
