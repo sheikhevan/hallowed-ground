@@ -6,6 +6,9 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_ecs_tilemap::prelude::*;
 
+// Special thanks to dpogorzelski on GitHub, whose code I adapted from. Original can be found
+// here: https://github.com/StarArawn/bevy_ecs_tilemap/issues/572
+
 // This plugin integrates bevy_ecs_tilemap with native bevy picking
 pub struct TilemapPickingPlugin;
 
