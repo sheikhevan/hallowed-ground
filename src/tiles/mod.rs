@@ -2,18 +2,15 @@ use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use rand::Rng;
 
-pub fn setup_tiles(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    #[cfg(all(not(feature = "atlas"), feature = "render"))] array_texture_loader: Res<
-        ArrayTextureLoader,
-    >,
-) {
+pub mod picking;
+
+pub fn setup_tiles(mut commands: Commands, asset_server: Res<AssetServer>) {
     let texture_handle: Handle<Image> = asset_server.load("grass.png");
     let map_size = TilemapSize { x: 32, y: 32 };
     let tilemap_entity = commands.spawn_empty().id();
     let mut tile_storage = TileStorage::empty(map_size);
 
+    // The amount of grass tiles to be used
     let num_tiles = 4;
     let mut rng = rand::rng();
 
@@ -21,7 +18,7 @@ pub fn setup_tiles(
         for y in 0..map_size.y {
             let tile_pos = TilePos { x, y };
 
-            let random_tile_index = rng.gen_range(0..num_tiles);
+            let random_tile_index = rng.random_range(0..num_tiles);
 
             let tile_entity = commands
                 .spawn(TileBundle {
@@ -49,13 +46,4 @@ pub fn setup_tiles(
         anchor: TilemapAnchor::Center,
         ..Default::default()
     });
-
-    #[cfg(all(not(feature = "atlas"), feature = "render"))]
-    {
-        array_texture_loader.add(TilemapArrayTexture {
-            texture: TilemapTexture::Single(asset_server.load("tiles.png")),
-            tile_size,
-            ..Default::default()
-        });
-    }
 }
