@@ -23,7 +23,7 @@ impl Default for Camera {
             speed: 300.0,
             margin: 50.0,
 
-            zoom_speed: 0.1,
+            zoom_speed: 0.02,
             max_zoom: 3.0,
             min_zoom: 0.5,
         }
