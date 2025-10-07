@@ -1,8 +1,4 @@
-use bevy::{
-    input::mouse::{MouseMotion, MouseWheel},
-    prelude::*,
-    window::PrimaryWindow,
-};
+use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 use bevy_ecs_tilemap::TilemapPlugin;
 
 mod tiles;
@@ -23,7 +19,7 @@ impl Default for Camera {
             speed: 300.0,
             margin: 50.0,
 
-            zoom_speed: 0.02,
+            zoom_speed: 0.03,
             max_zoom: 3.0,
             min_zoom: 0.5,
         }
@@ -46,7 +42,7 @@ fn main() {
         .add_plugins((TilemapPlugin, tiles::picking::TilemapPickingPlugin))
         .add_systems(Startup, tiles::setup_tiles)
         .add_systems(Startup, setup_camera)
-        .add_systems(Update, (camera_edge_scroll, camera_zoom, camera_drag))
+        .add_systems(Update, (camera_edge_scroll, camera_zoom, camera_wasd))
         .run();
 }
 
@@ -115,23 +111,34 @@ fn camera_zoom(
     }
 }
 
-fn camera_drag(
-    mouse_button: Res<ButtonInput<MouseButton>>,
-    mut msg_motion: MessageReader<MouseMotion>,
+fn camera_wasd(
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut q_camera: Query<(&mut Transform, &Camera)>,
 ) {
-    if !mouse_button.pressed(MouseButton::Left) {
-        return;
-    }
+    let mut move_dir = Vec2::ZERO;
 
-    let Ok((mut camera_transform, _)) = q_camera.single_mut() else {
+    let Ok((mut camera_transform, camera)) = q_camera.single_mut() else {
         return;
     };
 
-    for msg in msg_motion.read() {
-        // Sorry for the magic number, it's not elegant but it works
-        camera_transform.translation.x -= msg.delta.x * 0.3;
-        camera_transform.translation.y += msg.delta.y * 0.3;
+    if keys.pressed(KeyCode::KeyW) {
+        move_dir.y += 1.0;
+    }
+    if keys.pressed(KeyCode::KeyA) {
+        move_dir.x -= 1.0;
+    }
+    if keys.pressed(KeyCode::KeyS) {
+        move_dir.y -= 1.0;
+    }
+    if keys.pressed(KeyCode::KeyD) {
+        move_dir.x += 1.0;
+    }
+
+    if move_dir.length() > 0.0 {
+        move_dir = move_dir.normalize();
+        camera_transform.translation.x += move_dir.x * camera.speed * time.delta_secs();
+        camera_transform.translation.y += move_dir.y * camera.speed * time.delta_secs();
     }
 }
 
