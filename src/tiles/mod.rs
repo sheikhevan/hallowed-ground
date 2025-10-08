@@ -6,7 +6,7 @@ pub mod picking;
 
 pub fn setup_tiles(mut commands: Commands, asset_server: Res<AssetServer>) {
     let texture_handle: Handle<Image> = asset_server.load("grass.png");
-    let map_size = TilemapSize { x: 32, y: 32 };
+    let map_size = TilemapSize { x: 64, y: 64 };
     let tilemap_entity = commands.spawn_empty().id();
     let mut tile_storage = TileStorage::empty(map_size);
 

@@ -1,7 +1,9 @@
 use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 use bevy_ecs_tilemap::TilemapPlugin;
+use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 
 mod tiles;
+mod ui;
 
 #[derive(Component)]
 struct Camera {
@@ -40,6 +42,15 @@ fn main() {
                 .set(ImagePlugin::default_nearest()),
         )
         .add_plugins((TilemapPlugin, tiles::picking::TilemapPickingPlugin))
+        .add_plugins(EguiPlugin::default())
+        .init_resource::<ui::Images>()
+        .init_resource::<ui::EguiTextureCache>()
+        .add_message::<ui::DebugSpawnBuildingMsg>()
+        .add_systems(PreUpdate, ui::register_textures)
+        .add_systems(
+            EguiPrimaryContextPass,
+            (ui::debug_ui, ui::debug_handle_spawn_building),
+        )
         .add_systems(Startup, tiles::setup_tiles)
         .add_systems(Startup, setup_camera)
         .add_systems(Update, (camera_edge_scroll, camera_zoom, camera_wasd))

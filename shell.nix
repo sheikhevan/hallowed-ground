@@ -6,6 +6,7 @@ pkgs.mkShell {
     rustc
     rustfmt
     rust-analyzer
+    ra-multiplex
 
     # System dependencies
     pkg-config
