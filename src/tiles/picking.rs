@@ -12,13 +12,15 @@ use bevy_ecs_tilemap::prelude::*;
 // This plugin integrates bevy_ecs_tilemap with native bevy picking
 pub struct TilemapPickingPlugin;
 
+#[derive(Component)]
+struct DragState {
+    offset: Vec2,
+}
+
 impl Plugin for TilemapPickingPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PreUpdate, picking_backend.in_set(PickingSystems::Backend))
-            .add_systems(
-                Update,
-                (highlight_hovered_tiles, highlight_hovered_buildings),
-            );
+            .add_systems(Update, (highlight_hovered_tiles, manage_hovered_buildings));
     }
 }
 
@@ -147,22 +149,132 @@ fn highlight_hovered_tiles(mut tiles: Query<(&PickingInteraction, &mut TileColor
     }
 }
 
-fn highlight_hovered_buildings(
-    mut buildings: Query<(&PickingInteraction, &mut Sprite), With<crate::ui::Building>>,
+fn manage_hovered_buildings(
+    mut commands: Commands,
+    mut q_buildings: Query<
+        (Entity, &PickingInteraction, &mut Sprite, &mut Transform),
+        With<crate::ui::Building>,
+    >,
+    q_dragging: Query<(Entity, &DragState)>,
+    q_pointers: Query<&PointerLocation>,
+    q_cameras: Query<(&Camera, &GlobalTransform)>,
+    q_primary_window: Query<Entity, With<PrimaryWindow>>,
+    q_tilemaps: Query<(
+        &TilemapSize,
+        &TilemapGridSize,
+        &TilemapType,
+        &TilemapTileSize,
+        &TilemapAnchor,
+        &GlobalTransform,
+    )>,
+    mouse_button: Res<ButtonInput<MouseButton>>,
 ) {
-    for (interaction, mut sprite) in buildings.iter_mut() {
+    let cursor_world_pos = q_pointers
+        .iter()
+        .filter_map(|pointer_location| {
+            let location = pointer_location.location()?;
+
+            q_cameras
+                .iter()
+                .filter(|(cam, _)| cam.is_active)
+                .find(|(cam, _)| {
+                    let Ok(primary_window_entity) = q_primary_window.single() else {
+                        return false;
+                    };
+                    cam.target.normalize(Some(primary_window_entity)).unwrap() == location.target
+                })
+                .and_then(|(camera, camera_transform)| {
+                    camera
+                        .viewport_to_world_2d(camera_transform, location.position)
+                        .ok()
+                })
+        })
+        .next();
+
+    // Had to add this bc the dragging never stopped
+    if !mouse_button.pressed(MouseButton::Left) {
+        for (entity, _) in q_dragging.iter() {
+            commands.entity(entity).remove::<DragState>();
+        }
+    }
+
+    // Handle dragging for buildings that are already being dragged
+    if let Some(cursor_pos) = cursor_world_pos {
+        for (entity, drag_state) in q_dragging.iter() {
+            if let Ok((_, _, _, mut transform)) = q_buildings.get_mut(entity) {
+                // Calculate desired position
+                let desired_pos = Vec2::new(
+                    cursor_pos.x - drag_state.offset.x,
+                    cursor_pos.y - drag_state.offset.y,
+                );
+
+                // Snap to grid if we have a tilemap
+                let snapped_pos = if let Some((
+                    map_size,
+                    grid_size,
+                    map_type,
+                    tile_size,
+                    anchor,
+                    tilemap_transform,
+                )) = q_tilemaps.iter().next()
+                {
+                    // Convert world position to tilemap local space
+                    let inverse_transform = tilemap_transform.affine().inverse();
+                    let local_pos = inverse_transform
+                        .transform_point3(desired_pos.extend(0.0))
+                        .truncate();
+
+                    // Get tile position
+                    if let Some(tile_pos) = TilePos::from_world_pos(
+                        &local_pos, map_size, grid_size, tile_size, map_type, anchor,
+                    ) {
+                        // Convert tile position back to world position (center of tile)
+                        let tile_center = tile_pos
+                            .center_in_world(map_size, grid_size, tile_size, map_type, anchor);
+                        let world_pos = tilemap_transform.transform_point(tile_center.extend(0.0));
+                        world_pos.truncate()
+                    } else {
+                        desired_pos
+                    }
+                } else {
+                    desired_pos
+                };
+
+                transform.translation.x = snapped_pos.x;
+                transform.translation.y = snapped_pos.y;
+            }
+        }
+    }
+
+    for (entity, interaction, mut sprite, transform) in q_buildings.iter_mut() {
+        let is_dragging = q_dragging.get(entity).is_ok();
+
         match interaction {
             PickingInteraction::Pressed => {
-                // Building is being clicked
+                if !is_dragging && mouse_button.pressed(MouseButton::Left) {
+                    if let Some(cursor_pos) = cursor_world_pos {
+                        let building_pos = transform.translation.truncate();
+                        let offset = cursor_pos - building_pos;
+                        commands.entity(entity).insert(DragState { offset });
+                    }
+                }
                 sprite.color = Color::srgb(1.0, 0.5, 0.5); // Reddish tint
             }
             PickingInteraction::Hovered => {
-                // Building is being hovered
-                sprite.color = Color::srgb(1.3, 1.3, 1.0); // Bright yellow tint
+                // Only highlight if not being dragged
+                if !is_dragging {
+                    sprite.color = Color::srgb(1.3, 1.3, 1.0); // Bright yellow tint
+                } else {
+                    sprite.color = Color::srgb(1.0, 0.5, 0.5);
+                }
             }
             PickingInteraction::None => {
-                // Reset to default
-                sprite.color = Color::WHITE;
+                // Reset color if not dragging
+                if !is_dragging {
+                    sprite.color = Color::WHITE;
+                } else {
+                    sprite.color = Color::srgb(1.0, 0.5, 0.5);
+                }
             }
         }
     }
